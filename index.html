@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>WebAR Studio</title>
+
+<!-- A-Frame & AR.js (WebXR-based, works on iPhone via Safari) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.5.0/aframe.min.js"></script>
+<script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --border: rgba(255,255,255,0.08);
+    --accent: #00f5c4;
+    --accent2: #ff6b6b;
+    --accent3: #7c6bff;
+    --text: #f0f0f5;
+    --muted: #6b6b80;
+    --glow: 0 0 20px rgba(0,245,196,0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── LAUNCH SCREEN ─── */
+  #launch-screen {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: var(--bg);
+    z-index: 9999;
+    padding: 2rem;
+    gap: 0;
+  }
+
+  .launch-bg {
+    position: absolute; inset: 0;
+    background: 
+      radial-gradient(ellipse 60% 40% at 30% 20%, rgba(124,107,255,0.15) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 50% at 70% 70%, rgba(0,245,196,0.1) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .launch-grid {
+    position: absolute; inset: 0;
+    background-image: 
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  .logo-mark {
+    position: relative;
+    width: 80px; height: 80px;
+    margin-bottom: 2rem;
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .logo-mark svg { width: 100%; height: 100%; }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  .launch-title {
+    font-size: clamp(2.5rem, 8vw, 3.5rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    text-align: center;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, var(--text) 30%, var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .launch-sub {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 3rem;
+  }
+
+  .mode-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    width: 100%;
+    max-width: 400px;
+    margin-bottom: 2rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .mode-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem 1rem;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mode-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent 40%, rgba(0,245,196,0.05));
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+
+  .mode-card:active { transform: scale(0.96); }
+  .mode-card:hover::before, .mode-card:active::before { opacity: 1; }
+
+  .mode-card.selected {
+    border-color: var(--accent);
+    box-shadow: var(--glow), inset 0 0 20px rgba(0,245,196,0.05);
+  }
+
+  .mode-icon {
+    font-size: 2rem;
+    margin-bottom: 0.75rem;
+    display: block;
+  }
+
+  .mode-name {
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .mode-desc {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  .start-btn {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 400px;
+    padding: 1.1rem;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 14px;
+    font-family: 'Syne', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 30px rgba(0,245,196,0.35);
+  }
+
+  .start-btn:active { transform: scale(0.97); opacity: 0.9; }
+
+  .ios-note {
+    position: relative; z-index: 1;
+    margin-top: 1rem;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    text-align: center;
+    max-width: 320px;
+    line-height: 1.6;
+  }
+
+  /* ─── TEXT MODE UI ─── */
+  #text-ui {
+    display: none;
+    position: fixed; inset: 0;
+    flex-direction: column;
+    z-index: 100;
+    pointer-events: none;
+  }
+
+  #text-ui.active { display: flex; }
+
+  /* A-Frame scene fills background */
+  #ar-scene {
+    position: fixed; inset: 0;
+    z-index: 1;
+  }
+
+  .ar-overlay {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 50;
+  }
+
+  /* Crosshair */
+  .crosshair {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px; height: 40px;
+  }
+
+  .crosshair::before, .crosshair::after {
+    content: '';
+    position: absolute;
+    background: var(--accent);
+    border-radius: 2px;
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  .crosshair::before {
+    width: 2px; height: 100%;
+    left: 50%; top: 0;
+    transform: translateX(-50%);
+  }
+
+  .crosshair::after {
+    width: 100%; height: 2px;
+    top: 50%; left: 0;
+    transform: translateY(-50%);
+  }
+
+  /* AR HUD top bar */
+  .ar-topbar {
+    position: fixed; top: 0; left: 0; right: 0;
+    padding: env(safe-area-inset-top, 1rem) 1rem 0.75rem;
+    background: linear-gradient(to bottom, rgba(10,10,15,0.9), transparent);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 200;
+    pointer-events: all;
+  }
+
+  .back-btn {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.5rem 1rem;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .ar-mode-badge {
+    background: rgba(0,245,196,0.15);
+    border: 1px solid rgba(0,245,196,0.3);
+    border-radius: 8px;
+    padding: 0.35rem 0.8rem;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Bottom control panel */
+  .ar-panel {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    padding: 1rem 1rem calc(env(safe-area-inset-bottom, 0px) + 1rem);
+    background: linear-gradient(to top, rgba(10,10,15,0.95) 70%, transparent);
+    pointer-events: all;
+    z-index: 200;
+  }
+
+  /* TEXT MODE panel */
+  .text-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+
+  .ar-input {
+    flex: 1;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.85rem 1rem;
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+
+  .ar-input:focus { border-color: var(--accent); }
+  .ar-input::placeholder { color: var(--muted); }
+
+  .place-btn {
+    background: var(--accent);
+    border: none;
+    border-radius: 12px;
+    width: 52px;
+    color: #000;
+    font-size: 1.3rem;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    flex-shrink: 0;
+  }
+
+  .style-row {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scrollbar-width: none;
+  }
+
+  .style-row::-webkit-scrollbar { display: none; }
+
+  .style-chip {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.4rem 0.85rem;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    flex-shrink: 0;
+    letter-spacing: 0.05em;
+  }
+
+  .style-chip.active {
+    background: rgba(124,107,255,0.15);
+    border-color: rgba(124,107,255,0.5);
+    color: #bdb4ff;
+  }
+
+  /* OBJECT MODE panel */
+  .obj-panel { display: none; }
+
+  .obj-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .obj-card {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.75rem 0.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .obj-card.active {
+    border-color: var(--accent2);
+    background: rgba(255,107,107,0.1);
+    box-shadow: 0 0 15px rgba(255,107,107,0.2);
+  }
+
+  .obj-card .obj-icon { font-size: 1.5rem; display: block; }
+  .obj-card .obj-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.55rem;
+    color: var(--muted);
+    margin-top: 0.25rem;
+    letter-spacing: 0.05em;
+  }
+
+  .drop-btn {
+    width: 100%;
+    padding: 0.9rem;
+    background: var(--accent2);
+    border: none;
+    border-radius: 12px;
+    color: #fff;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Clear button */
+  .clear-btn {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.5rem 0.85rem;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    letter-spacing: 0.05em;
+  }
+
+  .topbar-right { display: flex; gap: 0.5rem; align-items: center; }
+
+  /* Hint toast */
+  .hint-toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(10,10,15,0.85);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.75rem 1.25rem;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    pointer-events: none;
+    transition: opacity 0.5s;
+    text-align: center;
+    line-height: 1.5;
+    z-index: 300;
+    white-space: nowrap;
+  }
+
+  .hint-toast.hidden { opacity: 0; }
+
+  /* Permission screen */
+  #permission-screen {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9998;
+    padding: 2rem;
+    text-align: center;
+    gap: 1rem;
+  }
+
+  #permission-screen.active { display: flex; }
+
+  .perm-icon { font-size: 3rem; }
+  .perm-title { font-size: 1.5rem; font-weight: 700; }
+  .perm-text { color: var(--muted); font-size: 0.85rem; line-height: 1.6; }
+  .perm-btn {
+    background: var(--accent);
+    border: none;
+    border-radius: 12px;
+    padding: 0.9rem 2rem;
+    color: #000;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    margin-top: 0.5rem;
+  }
+
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════
+     LAUNCH SCREEN
+══════════════════════════════════ -->
+<div id="launch-screen">
+  <div class="launch-bg"></div>
+  <div class="launch-grid"></div>
+
+  <div class="logo-mark">
+    <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="4" y="4" width="72" height="72" rx="20" fill="rgba(0,245,196,0.08)" stroke="rgba(0,245,196,0.3)" stroke-width="1.5"/>
+      <path d="M20 40 L40 20 L60 40 L40 60 Z" stroke="#00f5c4" stroke-width="2" fill="rgba(0,245,196,0.12)"/>
+      <circle cx="40" cy="40" r="6" fill="#00f5c4" opacity="0.8"/>
+      <path d="M8 20 L8 8 L20 8" stroke="rgba(0,245,196,0.5)" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M72 20 L72 8 L60 8" stroke="rgba(0,245,196,0.5)" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M8 60 L8 72 L20 72" stroke="rgba(0,245,196,0.5)" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M72 60 L72 72 L60 72" stroke="rgba(0,245,196,0.5)" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+  </div>
+
+  <h1 class="launch-title">WebAR<br>Studio</h1>
+  <p class="launch-sub">Powered by AR.js + A-Frame</p>
+
+  <div class="mode-grid">
+    <div class="mode-card selected" data-mode="text" onclick="selectMode(this, 'text')">
+      <span class="mode-icon">✍️</span>
+      <div class="mode-name">テキスト</div>
+      <div class="mode-desc">壁や空間に<br>文字を表示</div>
+    </div>
+    <div class="mode-card" data-mode="object" onclick="selectMode(this, 'object')">
+      <span class="mode-icon">📦</span>
+      <div class="mode-name">オブジェクト</div>
+      <div class="mode-desc">3Dオブジェクトを<br>床に配置</div>
+    </div>
+  </div>
+
+  <button class="start-btn" onclick="startAR()">
+    カメラを起動して AR を開始
+  </button>
+
+  <p class="ios-note">
+    ⚠️ Safari からアクセスしてください<br>
+    カメラの許可が必要です · ARKit 対応 iPhone 推奨<br>
+    <br>
+    💡 マーカーレス AR (環境認識) を使用します
+  </p>
+</div>
+
+<!-- ══════════════════════════════════
+     PERMISSION SCREEN
+══════════════════════════════════ -->
+<div id="permission-screen">
+  <div class="perm-icon">📷</div>
+  <div class="perm-title">カメラの許可が必要です</div>
+  <div class="perm-text">
+    WebAR を使うには、Safari の設定で<br>
+    このサイトのカメラアクセスを<br>
+    許可してください。
+  </div>
+  <button class="perm-btn" onclick="location.reload()">再試行</button>
+</div>
+
+<!-- ══════════════════════════════════
+     A-FRAME AR SCENE
+══════════════════════════════════ -->
+<a-scene id="ar-scene"
+  style="display:none; position:fixed; inset:0; z-index:1;"
+  embedded
+  arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;"
+  vr-mode-ui="enabled: false"
+  renderer="logarithmicDepthBuffer: true; colorManagement: true;"
+  loading-screen="enabled: false">
+
+  <!-- Camera -->
+  <a-entity camera look-controls="enabled: false" id="camera"></a-entity>
+
+  <!-- Entities container -->
+  <a-entity id="ar-content"></a-entity>
+
+</a-scene>
+
+<!-- ══════════════════════════════════
+     AR UI OVERLAY
+══════════════════════════════════ -->
+<div id="text-ui">
+
+  <!-- TOP BAR -->
+  <div class="ar-topbar">
+    <button class="back-btn" onclick="exitAR()">← 戻る</button>
+    <div class="ar-mode-badge" id="mode-badge">TEXT MODE</div>
+    <div class="topbar-right">
+      <button class="clear-btn" onclick="clearAll()">CLR</button>
+      <div class="status-dot"></div>
+    </div>
+  </div>
+
+  <!-- CROSSHAIR overlay -->
+  <div class="ar-overlay">
+    <div class="crosshair"></div>
+  </div>
+
+  <!-- HINT TOAST -->
+  <div class="hint-toast" id="hint-toast">
+    カメラをゆっくり動かして<br>環境を認識させてください
+  </div>
+
+  <!-- BOTTOM PANEL -->
+  <div class="ar-panel">
+
+    <!-- TEXT MODE -->
+    <div class="text-panel" id="text-panel">
+      <div class="style-row">
+        <div class="style-chip active" data-style="wall" onclick="selectStyle(this)">🧱 壁に貼る</div>
+        <div class="style-chip" data-style="float" onclick="selectStyle(this)">✨ 浮かせる</div>
+        <div class="style-chip" data-style="neon" onclick="selectStyle(this)">💜 ネオン</div>
+        <div class="style-chip" data-style="stamp" onclick="selectStyle(this)">🔴 スタンプ</div>
+        <div class="style-chip" data-style="ghost" onclick="selectStyle(this)">👻 ゴースト</div>
+      </div>
+      <div class="input-row">
+        <input class="ar-input" id="text-input" type="text"
+          placeholder="ここにテキストを入力..." maxlength="30"
+          autocomplete="off" autocorrect="off" autocapitalize="off">
+        <button class="place-btn" onclick="placeText()">＋</button>
+      </div>
+    </div>
+
+    <!-- OBJECT MODE -->
+    <div class="obj-panel" id="obj-panel">
+      <div class="obj-grid">
+        <div class="obj-card active" data-obj="box" onclick="selectObj(this)">
+          <span class="obj-icon">📦</span>
+          <div class="obj-label">BOX</div>
+        </div>
+        <div class="obj-card" data-obj="sphere" onclick="selectObj(this)">
+          <span class="obj-icon">🔮</span>
+          <div class="obj-label">SPHERE</div>
+        </div>
+        <div class="obj-card" data-obj="cone" onclick="selectObj(this)">
+          <span class="obj-icon">🔺</span>
+          <div class="obj-label">CONE</div>
+        </div>
+        <div class="obj-card" data-obj="torus" onclick="selectObj(this)">
+          <span class="obj-icon">🍩</span>
+          <div class="obj-label">TORUS</div>
+        </div>
+        <div class="obj-card" data-obj="tree" onclick="selectObj(this)">
+          <span class="obj-icon">🌲</span>
+          <div class="obj-label">TREE</div>
+        </div>
+        <div class="obj-card" data-obj="house" onclick="selectObj(this)">
+          <span class="obj-icon">🏠</span>
+          <div class="obj-label">HOUSE</div>
+        </div>
+        <div class="obj-card" data-obj="star" onclick="selectObj(this)">
+          <span class="obj-icon">⭐</span>
+          <div class="obj-label">STAR</div>
+        </div>
+        <div class="obj-card" data-obj="arrow" onclick="selectObj(this)">
+          <span class="obj-icon">⬆️</span>
+          <div class="obj-label">ARROW</div>
+        </div>
+      </div>
+      <button class="drop-btn" onclick="placeObject()">
+        📍 ここに配置する
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     SCRIPT
+══════════════════════════════════ -->
+<script>
+// ── State ──────────────────────────
+let currentMode = 'text';
+let currentStyle = 'wall';
+let currentObj = 'box';
+let arStarted = false;
+let placedCount = 0;
+
+// ── Mode selection ──────────────────
+function selectMode(el, mode) {
+  document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  currentMode = mode;
+}
+
+// ── Style selection ─────────────────
+function selectStyle(el) {
+  document.querySelectorAll('.style-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  currentStyle = el.dataset.style;
+}
+
+// ── Object selection ────────────────
+function selectObj(el) {
+  document.querySelectorAll('.obj-card').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  currentObj = el.dataset.obj;
+}
+
+// ── Start AR ────────────────────────
+async function startAR() {
+  // Check camera permission
+  try {
+    await navigator.mediaDevices.getUserMedia({ video: true });
+  } catch (e) {
+    document.getElementById('permission-screen').classList.add('active');
+    document.getElementById('launch-screen').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('launch-screen').style.display = 'none';
+  document.getElementById('ar-scene').style.display = 'block';
+
+  // Show UI
+  const ui = document.getElementById('text-ui');
+  ui.classList.add('active');
+
+  // Update mode badge and panels
+  if (currentMode === 'text') {
+    document.getElementById('mode-badge').textContent = 'TEXT MODE';
+    document.getElementById('text-panel').style.display = 'flex';
+    document.getElementById('obj-panel').style.display = 'none';
+  } else {
+    document.getElementById('mode-badge').textContent = 'OBJECT MODE';
+    document.getElementById('text-panel').style.display = 'none';
+    document.getElementById('obj-panel').style.display = 'block';
+  }
+
+  arStarted = true;
+
+  // Hide hint after 4s
+  setTimeout(() => {
+    const hint = document.getElementById('hint-toast');
+    hint.classList.add('hidden');
+    setTimeout(() => hint.style.display = 'none', 600);
+  }, 4000);
+}
+
+// ── Exit AR ─────────────────────────
+function exitAR() {
+  location.reload();
+}
+
+// ── Clear all ───────────────────────
+function clearAll() {
+  const content = document.getElementById('ar-content');
+  while (content.firstChild) content.removeChild(content.firstChild);
+  placedCount = 0;
+  showToast('すべてクリアしました');
+}
+
+// ── Get placement position ──────────
+function getPlacePosition(type = 'wall') {
+  // Place ~2m in front of camera, with variation based on placement count
+  const spread = Math.min(placedCount * 0.3, 1.5);
+  const xOffset = (Math.random() - 0.5) * spread;
+  const yOffset = type === 'floor' ? -1.2 : (Math.random() - 0.5) * spread * 0.5;
+  const z = -2;
+  return { x: xOffset, y: yOffset, z };
+}
+
+// ── Style configs ───────────────────
+const styleConfigs = {
+  wall:  { color: '#ffffff', opacity: 1,    size: 0.3,  shader: 'flat',   outline: false },
+  float: { color: '#00f5c4', opacity: 0.95, size: 0.25, shader: 'flat',   outline: false },
+  neon:  { color: '#bf80ff', opacity: 1,    size: 0.28, shader: 'flat',   outline: true  },
+  stamp: { color: '#ff4444', opacity: 1,    size: 0.35, shader: 'flat',   outline: false },
+  ghost: { color: '#aaaaff', opacity: 0.45, size: 0.3,  shader: 'flat',   outline: false },
+};
+
+// ── Place Text ───────────────────────
+function placeText() {
+  const input = document.getElementById('text-input');
+  const txt = input.value.trim();
+  if (!txt) {
+    input.focus();
+    return;
+  }
+
+  const cfg = styleConfigs[currentStyle] || styleConfigs.wall;
+  const pos = getPlacePosition('wall');
+  const content = document.getElementById('ar-content');
+
+  // Create text entity
+  const entity = document.createElement('a-text');
+  entity.setAttribute('value', txt);
+  entity.setAttribute('color', cfg.color);
+  entity.setAttribute('opacity', cfg.opacity);
+  entity.setAttribute('width', 4);
+  entity.setAttribute('align', 'center');
+  entity.setAttribute('shader', cfg.shader);
+  entity.setAttribute('font', 'roboto');
+  entity.setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
+
+  // Rotation: face user
+  entity.setAttribute('rotation', '0 0 0');
+
+  // Scale by style
+  const scale = cfg.size * 4;
+  entity.setAttribute('scale', `${scale} ${scale} ${scale}`);
+
+  // Animation for float style
+  if (currentStyle === 'float') {
+    entity.setAttribute('animation', 'property: position; dir: alternate; dur: 2000; easing: easeInOutSine; loop: true; to: ' + `${pos.x} ${pos.y + 0.15} ${pos.z}`);
+  }
+
+  if (currentStyle === 'neon') {
+    entity.setAttribute('animation', 'property: opacity; dir: alternate; dur: 800; easing: easeInOutSine; loop: true; to: 0.6');
+  }
+
+  content.appendChild(entity);
+  placedCount++;
+  input.value = '';
+  showToast(`"${txt}" を配置しました`);
+}
+
+// ── Place Object ─────────────────────
+function placeObject() {
+  const pos = getPlacePosition('floor');
+  const content = document.getElementById('ar-content');
+
+  let entity;
+
+  const colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#c77dff','#ff9a3c'];
+  const color = colors[placedCount % colors.length];
+
+  switch (currentObj) {
+    case 'box':
+      entity = document.createElement('a-box');
+      entity.setAttribute('color', color);
+      entity.setAttribute('depth', '0.3');
+      entity.setAttribute('height', '0.3');
+      entity.setAttribute('width', '0.3');
+      entity.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear');
+      break;
+
+    case 'sphere':
+      entity = document.createElement('a-sphere');
+      entity.setAttribute('color', color);
+      entity.setAttribute('radius', '0.2');
+      entity.setAttribute('animation', 'property: position; dir: alternate; dur: 1500; easing: easeInOutSine; loop: true; to: ' + `${pos.x} ${pos.y + 0.2} ${pos.z}`);
+      break;
+
+    case 'cone':
+      entity = document.createElement('a-cone');
+      entity.setAttribute('color', color);
+      entity.setAttribute('height', '0.5');
+      entity.setAttribute('radius-bottom', '0.2');
+      entity.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 3000; easing: linear');
+      break;
+
+    case 'torus':
+      entity = document.createElement('a-torus');
+      entity.setAttribute('color', color);
+      entity.setAttribute('radius', '0.2');
+      entity.setAttribute('radius-tubular', '0.05');
+      entity.setAttribute('animation', 'property: rotation; to: 360 180 0; loop: true; dur: 3000; easing: linear');
+      break;
+
+    case 'tree': {
+      // Trunk + leaves composite
+      entity = document.createElement('a-entity');
+      const trunk = document.createElement('a-cylinder');
+      trunk.setAttribute('color', '#8B4513');
+      trunk.setAttribute('height', '0.4');
+      trunk.setAttribute('radius', '0.05');
+      trunk.setAttribute('position', '0 0 0');
+      const leaves = document.createElement('a-cone');
+      leaves.setAttribute('color', '#2d8a2d');
+      leaves.setAttribute('height', '0.5');
+      leaves.setAttribute('radius-bottom', '0.25');
+      leaves.setAttribute('position', '0 0.45 0');
+      entity.appendChild(trunk);
+      entity.appendChild(leaves);
+      break;
+    }
+
+    case 'house': {
+      entity = document.createElement('a-entity');
+      const walls = document.createElement('a-box');
+      walls.setAttribute('color', '#f5e6d3');
+      walls.setAttribute('width', '0.5');
+      walls.setAttribute('height', '0.35');
+      walls.setAttribute('depth', '0.5');
+      walls.setAttribute('position', '0 0 0');
+      const roof = document.createElement('a-cone');
+      roof.setAttribute('color', '#c0392b');
+      roof.setAttribute('height', '0.3');
+      roof.setAttribute('radius-bottom', '0.38');
+      roof.setAttribute('position', '0 0.32 0');
+      entity.appendChild(walls);
+      entity.appendChild(roof);
+      break;
+    }
+
+    case 'star': {
+      entity = document.createElement('a-entity');
+      // Approximate star with torus-knot
+      const star = document.createElement('a-torus-knot');
+      star.setAttribute('color', '#ffd700');
+      star.setAttribute('radius', '0.12');
+      star.setAttribute('radius-tubular', '0.03');
+      star.setAttribute('p', '2');
+      star.setAttribute('q', '3');
+      star.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear');
+      entity.appendChild(star);
+      entity = star;
+      break;
+    }
+
+    case 'arrow': {
+      entity = document.createElement('a-entity');
+      const shaft = document.createElement('a-cylinder');
+      shaft.setAttribute('color', '#ff6b6b');
+      shaft.setAttribute('height', '0.5');
+      shaft.setAttribute('radius', '0.04');
+      shaft.setAttribute('position', '0 0 0');
+      const head = document.createElement('a-cone');
+      head.setAttribute('color', '#ff6b6b');
+      head.setAttribute('height', '0.2');
+      head.setAttribute('radius-bottom', '0.1');
+      head.setAttribute('position', '0 0.35 0');
+      entity.appendChild(shaft);
+      entity.appendChild(head);
+      entity.setAttribute('animation', 'property: position; dir: alternate; dur: 1200; easing: easeInOutSine; loop: true; to: ' + `${pos.x} ${pos.y + 0.15} ${pos.z}`);
+      break;
+    }
+
+    default:
+      entity = document.createElement('a-box');
+      entity.setAttribute('color', color);
+  }
+
+  entity.setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
+  entity.setAttribute('shadow', 'cast: true; receive: true');
+
+  content.appendChild(entity);
+  placedCount++;
+
+  const labels = { box:'ボックス', sphere:'スフィア', cone:'コーン', torus:'トーラス', tree:'ツリー', house:'ハウス', star:'スター', arrow:'アロー' };
+  showToast(`${labels[currentObj] || 'オブジェクト'} を配置しました`);
+}
+
+// ── Toast ────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const hint = document.getElementById('hint-toast');
+  hint.style.display = 'block';
+  hint.classList.remove('hidden');
+  hint.textContent = msg;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    hint.classList.add('hidden');
+    setTimeout(() => { if (hint.classList.contains('hidden')) hint.style.display = 'none'; }, 600);
+  }, 2000);
+}
+
+// ── Enter key to place text ──────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && arStarted && currentMode === 'text') placeText();
+});
+</script>
+
+</body>
+</html>
