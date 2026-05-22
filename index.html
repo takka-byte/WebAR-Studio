@@ -1,970 +1,577 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta name="google-site-verification" content="nlmbo8b-q4g90_NSZ3tt-7Daii-omfJGn0LqhMDL4dU" />
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>WebAR Studio</title>
+<meta name="google-site-verification" content="nlmbo8b-q4g90_NSZ3tt-7Daii-omfJGn0LqhMDL4dU" /> 
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<title>AR Studio</title>
 
-<!-- A-Frame & AR.js (WebXR-based, works on iPhone via Safari) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.5.0/aframe.min.js"></script>
-<script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+<!-- Three.js r168 ESM via importmap -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/"
+  }
+}
+</script>
 
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Mono:wght@400;500&display=swap');
 
-  :root {
-    --bg: #0a0a0f;
-    --surface: #13131a;
-    --border: rgba(255,255,255,0.08);
-    --accent: #00f5c4;
-    --accent2: #ff6b6b;
-    --accent3: #7c6bff;
-    --text: #f0f0f5;
-    --muted: #6b6b80;
-    --glow: 0 0 20px rgba(0,245,196,0.3);
-  }
+:root{
+  --ink:#0f0e0d;
+  --paper:#f5f2ee;
+  --cream:#ede8e0;
+  --accent:#d4500a;
+  --accent2:#2c6e49;
+  --muted:#9c9082;
+  --r:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{min-height:100dvh;background:var(--paper);color:var(--ink);font-family:'DM Mono',monospace}
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+/* ── GRAIN overlay ── */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity:.45;
+}
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Syne', sans-serif;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
+/* ── LAYOUT ── */
+.app{max-width:480px;margin:0 auto;padding:0 0 80px}
 
-  /* ─── LAUNCH SCREEN ─── */
-  #launch-screen {
-    position: fixed; inset: 0;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    background: var(--bg);
-    z-index: 9999;
-    padding: 2rem;
-    gap: 0;
-  }
+/* ── HEADER ── */
+header{
+  padding:52px 24px 24px;
+  border-bottom:1px solid rgba(0,0,0,.1);
+}
+.logo{font-family:'DM Serif Display',serif;font-size:36px;line-height:1;letter-spacing:-.5px}
+.logo em{color:var(--accent);font-style:normal}
+.sub{font-size:10px;color:var(--muted);letter-spacing:2.5px;text-transform:uppercase;margin-top:6px}
 
-  .launch-bg {
-    position: absolute; inset: 0;
-    background: 
-      radial-gradient(ellipse 60% 40% at 30% 20%, rgba(124,107,255,0.15) 0%, transparent 60%),
-      radial-gradient(ellipse 50% 50% at 70% 70%, rgba(0,245,196,0.1) 0%, transparent 60%);
-    pointer-events: none;
-  }
+/* ── SECTION ── */
+.section{padding:28px 24px 0}
+.section-label{
+  font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);
+  margin-bottom:14px;display:flex;align-items:center;gap:8px;
+}
+.section-label::after{content:'';flex:1;height:1px;background:rgba(0,0,0,.1)}
 
-  .launch-grid {
-    position: absolute; inset: 0;
-    background-image: 
-      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-    background-size: 40px 40px;
-    pointer-events: none;
-  }
+/* ── TEXT INPUT ── */
+.text-field{
+  background:#fff;border:1.5px solid rgba(0,0,0,.12);border-radius:var(--r);
+  padding:16px 18px;width:100%;
+  font-family:'DM Mono',monospace;font-size:20px;
+  color:var(--ink);outline:none;transition:border-color .2s;
+  appearance:none;-webkit-appearance:none;
+}
+.text-field:focus{border-color:var(--accent)}
+.text-field::placeholder{color:var(--muted);font-size:16px}
 
-  .logo-mark {
-    position: relative;
-    width: 80px; height: 80px;
-    margin-bottom: 2rem;
-    animation: float 3s ease-in-out infinite;
-  }
+/* ── CONTROLS ROW ── */
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
 
-  .logo-mark svg { width: 100%; height: 100%; }
+/* ── CHIP GROUP ── */
+.chip-group{display:flex;gap:6px;flex-wrap:wrap}
+.chip{
+  background:var(--cream);border:1.5px solid rgba(0,0,0,.1);border-radius:50px;
+  font-family:'DM Mono',monospace;font-size:11px;padding:6px 14px;cursor:pointer;
+  transition:all .18s;color:var(--ink);
+}
+.chip.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 
-  @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-8px); }
-  }
+/* ── COLOR DOTS ── */
+.color-dots{display:flex;gap:8px;align-items:center}
+.dot{
+  width:26px;height:26px;border-radius:50%;cursor:pointer;
+  border:2.5px solid transparent;transition:transform .15s,border-color .15s;
+}
+.dot.active{border-color:var(--ink);transform:scale(1.15)}
 
-  .launch-title {
-    font-size: clamp(2.5rem, 8vw, 3.5rem);
-    font-weight: 800;
-    letter-spacing: -0.03em;
-    line-height: 1;
-    text-align: center;
-    margin-bottom: 0.5rem;
-    background: linear-gradient(135deg, var(--text) 30%, var(--accent));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
+/* ── SLIDER ── */
+.slider-wrap{display:flex;align-items:center;gap:10px;width:100%;margin-top:4px}
+.slider-wrap label{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);width:32px}
+input[type=range]{flex:1;accent-color:var(--accent);height:4px}
+.slider-val{font-size:11px;color:var(--accent);min-width:28px;text-align:right}
 
-  .launch-sub {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.75rem;
-    color: var(--muted);
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    margin-bottom: 3rem;
-  }
+/* ── PREVIEW CANVAS ── */
+.preview-wrap{
+  margin:20px 24px 0;
+  background:var(--cream);
+  border:1.5px solid rgba(0,0,0,.1);
+  border-radius:var(--r);overflow:hidden;
+  position:relative;
+}
+#preview-canvas{width:100%;aspect-ratio:1;display:block}
+.preview-label{
+  position:absolute;bottom:10px;left:12px;
+  font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);
+}
 
-  .mode-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    width: 100%;
-    max-width: 400px;
-    margin-bottom: 2rem;
-    position: relative;
-    z-index: 1;
-  }
+/* ── AR BUTTON ── */
+.ar-btn-wrap{padding:24px 24px 0}
+#ar-btn{
+  width:100%;padding:18px;
+  background:var(--accent);color:#fff;
+  border:none;border-radius:var(--r);
+  font-family:'DM Serif Display',serif;font-size:20px;
+  cursor:pointer;transition:transform .15s,filter .15s;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  position:relative;overflow:hidden;
+}
+#ar-btn::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,.15) 0%,transparent 60%);
+  pointer-events:none;
+}
+#ar-btn:active{transform:scale(.98);filter:brightness(.92)}
+#ar-btn:disabled{background:var(--muted);cursor:not-allowed}
+.ar-icon{font-size:22px}
 
-  .mode-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 1.5rem 1rem;
-    cursor: pointer;
-    transition: all 0.25s ease;
-    text-align: center;
-    position: relative;
-    overflow: hidden;
-  }
+/* ── PROGRESS ── */
+#progress-wrap{
+  padding:0 24px;margin-top:16px;display:none;
+}
+.progress-bar-bg{
+  height:4px;background:rgba(0,0,0,.1);border-radius:2px;overflow:hidden;
+}
+.progress-bar{
+  height:100%;background:var(--accent);border-radius:2px;width:0%;
+  transition:width .3s ease;
+}
+.progress-label{font-size:10px;color:var(--muted);margin-top:6px;letter-spacing:1px}
 
-  .mode-card::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, transparent 40%, rgba(0,245,196,0.05));
-    opacity: 0;
-    transition: opacity 0.25s;
-  }
+/* ── NOTE ── */
+.note{
+  margin:16px 24px 0;font-size:10px;color:var(--muted);line-height:1.7;
+  padding:12px 14px;background:var(--cream);border-radius:10px;
+  border-left:3px solid var(--accent2);
+}
+.note strong{color:var(--ink)}
 
-  .mode-card:active { transform: scale(0.96); }
-  .mode-card:hover::before, .mode-card:active::before { opacity: 1; }
+/* ── TAB BAR ── */
+.tab-bar{
+  display:flex;gap:0;
+  margin:24px 24px 0;
+  background:var(--cream);border-radius:var(--r);
+  padding:4px;border:1.5px solid rgba(0,0,0,.08);
+}
+.tab{
+  flex:1;padding:10px 0;text-align:center;
+  font-size:11px;letter-spacing:1px;text-transform:uppercase;
+  cursor:pointer;border-radius:10px;
+  color:var(--muted);transition:all .2s;
+}
+.tab.active{background:#fff;color:var(--ink);font-weight:500;box-shadow:0 1px 4px rgba(0,0,0,.1)}
 
-  .mode-card.selected {
-    border-color: var(--accent);
-    box-shadow: var(--glow), inset 0 0 20px rgba(0,245,196,0.05);
-  }
-
-  .mode-icon {
-    font-size: 2rem;
-    margin-bottom: 0.75rem;
-    display: block;
-  }
-
-  .mode-name {
-    font-weight: 700;
-    font-size: 0.9rem;
-    margin-bottom: 0.25rem;
-  }
-
-  .mode-desc {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.65rem;
-    color: var(--muted);
-    line-height: 1.4;
-  }
-
-  .start-btn {
-    position: relative;
-    z-index: 1;
-    width: 100%;
-    max-width: 400px;
-    padding: 1.1rem;
-    background: var(--accent);
-    color: #000;
-    border: none;
-    border-radius: 14px;
-    font-family: 'Syne', sans-serif;
-    font-size: 1rem;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: 0 4px 30px rgba(0,245,196,0.35);
-  }
-
-  .start-btn:active { transform: scale(0.97); opacity: 0.9; }
-
-  .ios-note {
-    position: relative; z-index: 1;
-    margin-top: 1rem;
-    font-family: 'Space Mono', monospace;
-    font-size: 0.65rem;
-    color: var(--muted);
-    text-align: center;
-    max-width: 320px;
-    line-height: 1.6;
-  }
-
-  /* ─── TEXT MODE UI ─── */
-  #text-ui {
-    display: none;
-    position: fixed; inset: 0;
-    flex-direction: column;
-    z-index: 100;
-    pointer-events: none;
-  }
-
-  #text-ui.active { display: flex; }
-
-  /* A-Frame scene fills background */
-  #ar-scene {
-    position: fixed; inset: 0;
-    z-index: 1;
-  }
-
-  .ar-overlay {
-    position: fixed; inset: 0;
-    pointer-events: none;
-    z-index: 50;
-  }
-
-  /* Crosshair */
-  .crosshair {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    width: 40px; height: 40px;
-  }
-
-  .crosshair::before, .crosshair::after {
-    content: '';
-    position: absolute;
-    background: var(--accent);
-    border-radius: 2px;
-    box-shadow: 0 0 8px var(--accent);
-  }
-
-  .crosshair::before {
-    width: 2px; height: 100%;
-    left: 50%; top: 0;
-    transform: translateX(-50%);
-  }
-
-  .crosshair::after {
-    width: 100%; height: 2px;
-    top: 50%; left: 0;
-    transform: translateY(-50%);
-  }
-
-  /* AR HUD top bar */
-  .ar-topbar {
-    position: fixed; top: 0; left: 0; right: 0;
-    padding: env(safe-area-inset-top, 1rem) 1rem 0.75rem;
-    background: linear-gradient(to bottom, rgba(10,10,15,0.9), transparent);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    z-index: 200;
-    pointer-events: all;
-  }
-
-  .back-btn {
-    background: rgba(255,255,255,0.1);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 0.5rem 1rem;
-    color: var(--text);
-    font-family: 'Space Mono', monospace;
-    font-size: 0.75rem;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  .ar-mode-badge {
-    background: rgba(0,245,196,0.15);
-    border: 1px solid rgba(0,245,196,0.3);
-    border-radius: 8px;
-    padding: 0.35rem 0.8rem;
-    font-family: 'Space Mono', monospace;
-    font-size: 0.65rem;
-    color: var(--accent);
-    letter-spacing: 0.1em;
-  }
-
-  .status-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 8px var(--accent);
-    animation: pulse 2s ease-in-out infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
-
-  /* Bottom control panel */
-  .ar-panel {
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    padding: 1rem 1rem calc(env(safe-area-inset-bottom, 0px) + 1rem);
-    background: linear-gradient(to top, rgba(10,10,15,0.95) 70%, transparent);
-    pointer-events: all;
-    z-index: 200;
-  }
-
-  /* TEXT MODE panel */
-  .text-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .input-row {
-    display: flex;
-    gap: 0.5rem;
-    align-items: stretch;
-  }
-
-  .ar-input {
-    flex: 1;
-    background: rgba(255,255,255,0.07);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 0.85rem 1rem;
-    color: var(--text);
-    font-family: 'Syne', sans-serif;
-    font-size: 1rem;
-    outline: none;
-    transition: border-color 0.2s;
-    -webkit-appearance: none;
-  }
-
-  .ar-input:focus { border-color: var(--accent); }
-  .ar-input::placeholder { color: var(--muted); }
-
-  .place-btn {
-    background: var(--accent);
-    border: none;
-    border-radius: 12px;
-    width: 52px;
-    color: #000;
-    font-size: 1.3rem;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    flex-shrink: 0;
-  }
-
-  .style-row {
-    display: flex;
-    gap: 0.5rem;
-    overflow-x: auto;
-    padding-bottom: 0.25rem;
-    scrollbar-width: none;
-  }
-
-  .style-row::-webkit-scrollbar { display: none; }
-
-  .style-chip {
-    background: rgba(255,255,255,0.06);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.4rem 0.85rem;
-    font-family: 'Space Mono', monospace;
-    font-size: 0.65rem;
-    color: var(--muted);
-    white-space: nowrap;
-    cursor: pointer;
-    transition: all 0.2s;
-    -webkit-tap-highlight-color: transparent;
-    flex-shrink: 0;
-    letter-spacing: 0.05em;
-  }
-
-  .style-chip.active {
-    background: rgba(124,107,255,0.15);
-    border-color: rgba(124,107,255,0.5);
-    color: #bdb4ff;
-  }
-
-  /* OBJECT MODE panel */
-  .obj-panel { display: none; }
-
-  .obj-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .obj-card {
-    background: rgba(255,255,255,0.06);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 0.75rem 0.5rem;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  .obj-card.active {
-    border-color: var(--accent2);
-    background: rgba(255,107,107,0.1);
-    box-shadow: 0 0 15px rgba(255,107,107,0.2);
-  }
-
-  .obj-card .obj-icon { font-size: 1.5rem; display: block; }
-  .obj-card .obj-label {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.55rem;
-    color: var(--muted);
-    margin-top: 0.25rem;
-    letter-spacing: 0.05em;
-  }
-
-  .drop-btn {
-    width: 100%;
-    padding: 0.9rem;
-    background: var(--accent2);
-    border: none;
-    border-radius: 12px;
-    color: #fff;
-    font-family: 'Syne', sans-serif;
-    font-weight: 700;
-    font-size: 0.95rem;
-    cursor: pointer;
-    letter-spacing: 0.05em;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  /* Clear button */
-  .clear-btn {
-    background: rgba(255,255,255,0.05);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 0.5rem 0.85rem;
-    color: var(--muted);
-    font-family: 'Space Mono', monospace;
-    font-size: 0.65rem;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    letter-spacing: 0.05em;
-  }
-
-  .topbar-right { display: flex; gap: 0.5rem; align-items: center; }
-
-  /* Hint toast */
-  .hint-toast {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(10,10,15,0.85);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 0.75rem 1.25rem;
-    font-family: 'Space Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--muted);
-    pointer-events: none;
-    transition: opacity 0.5s;
-    text-align: center;
-    line-height: 1.5;
-    z-index: 300;
-    white-space: nowrap;
-  }
-
-  .hint-toast.hidden { opacity: 0; }
-
-  /* Permission screen */
-  #permission-screen {
-    position: fixed; inset: 0;
-    background: var(--bg);
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    z-index: 9998;
-    padding: 2rem;
-    text-align: center;
-    gap: 1rem;
-  }
-
-  #permission-screen.active { display: flex; }
-
-  .perm-icon { font-size: 3rem; }
-  .perm-title { font-size: 1.5rem; font-weight: 700; }
-  .perm-text { color: var(--muted); font-size: 0.85rem; line-height: 1.6; }
-  .perm-btn {
-    background: var(--accent);
-    border: none;
-    border-radius: 12px;
-    padding: 0.9rem 2rem;
-    color: #000;
-    font-family: 'Syne', sans-serif;
-    font-weight: 700;
-    font-size: 1rem;
-    cursor: pointer;
-    margin-top: 0.5rem;
-  }
-
+.panel{display:none}.panel.active{display:block}
 </style>
 </head>
 <body>
+<div class="app">
 
-<!-- ══════════════════════════════════
-     LAUNCH SCREEN
-══════════════════════════════════ -->
-<div id="launch-screen">
-  <div class="launch-bg"></div>
-  <div class="launch-grid"></div>
+  <!-- HEADER -->
+  <header>
+    <div class="logo">AR<em>.</em>Studio</div>
+    <div class="sub">iPhone AR Quick Look</div>
+  </header>
 
-  <div class="logo-mark">
-    <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="4" y="4" width="72" height="72" rx="20" fill="rgba(0,245,196,0.08)" stroke="rgba(0,245,196,0.3)" stroke-width="1.5"/>
-      <path d="M20 40 L40 20 L60 40 L40 60 Z" stroke="#00f5c4" stroke-width="2" fill="rgba(0,245,196,0.12)"/>
-      <circle cx="40" cy="40" r="6" fill="#00f5c4" opacity="0.8"/>
-      <path d="M8 20 L8 8 L20 8" stroke="rgba(0,245,196,0.5)" stroke-width="1.5" stroke-linecap="round"/>
-      <path d="M72 20 L72 8 L60 8" stroke="rgba(0,245,196,0.5)" stroke-width="1.5" stroke-linecap="round"/>
-      <path d="M8 60 L8 72 L20 72" stroke="rgba(0,245,196,0.5)" stroke-width="1.5" stroke-linecap="round"/>
-      <path d="M72 60 L72 72 L60 72" stroke="rgba(0,245,196,0.5)" stroke-width="1.5" stroke-linecap="round"/>
-    </svg>
+  <!-- TABS -->
+  <div class="tab-bar">
+    <div class="tab active" data-tab="text" onclick="switchTab('text')">📝 テキスト</div>
+    <div class="tab" data-tab="shape" onclick="switchTab('shape')">🔷 図形</div>
   </div>
 
-  <h1 class="launch-title">WebAR<br>Studio</h1>
-  <p class="launch-sub">Powered by AR.js + A-Frame</p>
+  <!-- ── TEXT PANEL ── -->
+  <div id="panel-text" class="panel active">
 
-  <div class="mode-grid">
-    <div class="mode-card selected" data-mode="text" onclick="selectMode(this, 'text')">
-      <span class="mode-icon">✍️</span>
-      <div class="mode-name">テキスト</div>
-      <div class="mode-desc">壁や空間に<br>文字を表示</div>
+    <div class="section">
+      <div class="section-label">テキスト</div>
+      <input class="text-field" id="txt" type="text" placeholder="Hello AR!" maxlength="20"
+             oninput="schedulePreview()" />
     </div>
-    <div class="mode-card" data-mode="object" onclick="selectMode(this, 'object')">
-      <span class="mode-icon">📦</span>
-      <div class="mode-name">オブジェクト</div>
-      <div class="mode-desc">3Dオブジェクトを<br>床に配置</div>
-    </div>
-  </div>
 
-  <button class="start-btn" onclick="startAR()">
-    カメラを起動して AR を開始
-  </button>
-
-  <p class="ios-note">
-    ⚠️ Safari からアクセスしてください<br>
-    カメラの許可が必要です · ARKit 対応 iPhone 推奨<br>
-    <br>
-    💡 マーカーレス AR (環境認識) を使用します
-  </p>
-</div>
-
-<!-- ══════════════════════════════════
-     PERMISSION SCREEN
-══════════════════════════════════ -->
-<div id="permission-screen">
-  <div class="perm-icon">📷</div>
-  <div class="perm-title">カメラの許可が必要です</div>
-  <div class="perm-text">
-    WebAR を使うには、Safari の設定で<br>
-    このサイトのカメラアクセスを<br>
-    許可してください。
-  </div>
-  <button class="perm-btn" onclick="location.reload()">再試行</button>
-</div>
-
-<!-- ══════════════════════════════════
-     A-FRAME AR SCENE
-══════════════════════════════════ -->
-<a-scene id="ar-scene"
-  style="display:none; position:fixed; inset:0; z-index:1;"
-  embedded
-  arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;"
-  vr-mode-ui="enabled: false"
-  renderer="logarithmicDepthBuffer: true; colorManagement: true;"
-  loading-screen="enabled: false">
-
-  <!-- Camera -->
-  <a-entity camera look-controls="enabled: false" id="camera"></a-entity>
-
-  <!-- Entities container -->
-  <a-entity id="ar-content"></a-entity>
-
-</a-scene>
-
-<!-- ══════════════════════════════════
-     AR UI OVERLAY
-══════════════════════════════════ -->
-<div id="text-ui">
-
-  <!-- TOP BAR -->
-  <div class="ar-topbar">
-    <button class="back-btn" onclick="exitAR()">← 戻る</button>
-    <div class="ar-mode-badge" id="mode-badge">TEXT MODE</div>
-    <div class="topbar-right">
-      <button class="clear-btn" onclick="clearAll()">CLR</button>
-      <div class="status-dot"></div>
-    </div>
-  </div>
-
-  <!-- CROSSHAIR overlay -->
-  <div class="ar-overlay">
-    <div class="crosshair"></div>
-  </div>
-
-  <!-- HINT TOAST -->
-  <div class="hint-toast" id="hint-toast">
-    カメラをゆっくり動かして<br>環境を認識させてください
-  </div>
-
-  <!-- BOTTOM PANEL -->
-  <div class="ar-panel">
-
-    <!-- TEXT MODE -->
-    <div class="text-panel" id="text-panel">
-      <div class="style-row">
-        <div class="style-chip active" data-style="wall" onclick="selectStyle(this)">🧱 壁に貼る</div>
-        <div class="style-chip" data-style="float" onclick="selectStyle(this)">✨ 浮かせる</div>
-        <div class="style-chip" data-style="neon" onclick="selectStyle(this)">💜 ネオン</div>
-        <div class="style-chip" data-style="stamp" onclick="selectStyle(this)">🔴 スタンプ</div>
-        <div class="style-chip" data-style="ghost" onclick="selectStyle(this)">👻 ゴースト</div>
-      </div>
-      <div class="input-row">
-        <input class="ar-input" id="text-input" type="text"
-          placeholder="ここにテキストを入力..." maxlength="30"
-          autocomplete="off" autocorrect="off" autocapitalize="off">
-        <button class="place-btn" onclick="placeText()">＋</button>
+    <div class="section">
+      <div class="section-label">フォント</div>
+      <div class="chip-group" id="font-chips">
+        <div class="chip active" data-font="helvetiker">Sans</div>
+        <div class="chip" data-font="optimer">Serif</div>
+        <div class="chip" data-font="gentilis">Gentilis</div>
       </div>
     </div>
 
-    <!-- OBJECT MODE -->
-    <div class="obj-panel" id="obj-panel">
-      <div class="obj-grid">
-        <div class="obj-card active" data-obj="box" onclick="selectObj(this)">
-          <span class="obj-icon">📦</span>
-          <div class="obj-label">BOX</div>
-        </div>
-        <div class="obj-card" data-obj="sphere" onclick="selectObj(this)">
-          <span class="obj-icon">🔮</span>
-          <div class="obj-label">SPHERE</div>
-        </div>
-        <div class="obj-card" data-obj="cone" onclick="selectObj(this)">
-          <span class="obj-icon">🔺</span>
-          <div class="obj-label">CONE</div>
-        </div>
-        <div class="obj-card" data-obj="torus" onclick="selectObj(this)">
-          <span class="obj-icon">🍩</span>
-          <div class="obj-label">TORUS</div>
-        </div>
-        <div class="obj-card" data-obj="tree" onclick="selectObj(this)">
-          <span class="obj-icon">🌲</span>
-          <div class="obj-label">TREE</div>
-        </div>
-        <div class="obj-card" data-obj="house" onclick="selectObj(this)">
-          <span class="obj-icon">🏠</span>
-          <div class="obj-label">HOUSE</div>
-        </div>
-        <div class="obj-card" data-obj="star" onclick="selectObj(this)">
-          <span class="obj-icon">⭐</span>
-          <div class="obj-label">STAR</div>
-        </div>
-        <div class="obj-card" data-obj="arrow" onclick="selectObj(this)">
-          <span class="obj-icon">⬆️</span>
-          <div class="obj-label">ARROW</div>
-        </div>
+    <div class="section">
+      <div class="section-label">カラー</div>
+      <div class="color-dots" id="text-colors">
+        <div class="dot active" style="background:#d4500a" data-color="#d4500a"></div>
+        <div class="dot" style="background:#2c6e49" data-color="#2c6e49"></div>
+        <div class="dot" style="background:#1a1a2e" data-color="#1a1a2e"></div>
+        <div class="dot" style="background:#e8c547" data-color="#e8c547"></div>
+        <div class="dot" style="background:#c084fc" data-color="#c084fc"></div>
+        <div class="dot" style="background:#f5f5f5" data-color="#f5f5f5" style="border:1px solid #ccc"></div>
       </div>
-      <button class="drop-btn" onclick="placeObject()">
-        📍 ここに配置する
-      </button>
     </div>
 
+    <div class="section">
+      <div class="section-label">サイズ / 深さ</div>
+      <div class="slider-wrap">
+        <label>SIZE</label>
+        <input type="range" id="txt-size" min="0.05" max="0.5" step="0.01" value="0.15" oninput="onSlider(this,'tsz')"/>
+        <span class="slider-val" id="tsz">0.15</span>
+      </div>
+      <div class="slider-wrap" style="margin-top:8px">
+        <label>DEPTH</label>
+        <input type="range" id="txt-depth" min="0.01" max="0.15" step="0.005" value="0.04" oninput="onSlider(this,'tdp')"/>
+        <span class="slider-val" id="tdp">0.040</span>
+      </div>
+    </div>
+
+  </div><!-- /panel-text -->
+
+  <!-- ── SHAPE PANEL ── -->
+  <div id="panel-shape" class="panel">
+
+    <div class="section">
+      <div class="section-label">図形</div>
+      <div class="chip-group" id="shape-chips">
+        <div class="chip active" data-shape="box">📦 Box</div>
+        <div class="chip" data-shape="sphere">🔵 Sphere</div>
+        <div class="chip" data-shape="cylinder">🥫 Cylinder</div>
+        <div class="chip" data-shape="cone">🔺 Cone</div>
+        <div class="chip" data-shape="torus">⭕ Torus</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">カラー</div>
+      <div class="color-dots" id="shape-colors">
+        <div class="dot active" style="background:#2c6e49" data-color="#2c6e49"></div>
+        <div class="dot" style="background:#d4500a" data-color="#d4500a"></div>
+        <div class="dot" style="background:#1a1a2e" data-color="#1a1a2e"></div>
+        <div class="dot" style="background:#e8c547" data-color="#e8c547"></div>
+        <div class="dot" style="background:#c084fc" data-color="#c084fc"></div>
+        <div class="dot" style="background:#e0e0e0" data-color="#e0e0e0"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">サイズ</div>
+      <div class="slider-wrap">
+        <label>SIZE</label>
+        <input type="range" id="shp-size" min="0.1" max="1.0" step="0.05" value="0.4" oninput="onSlider(this,'ssz')"/>
+        <span class="slider-val" id="ssz">0.40</span>
+      </div>
+    </div>
+
+  </div><!-- /panel-shape -->
+
+  <!-- PREVIEW -->
+  <div class="preview-wrap">
+    <canvas id="preview-canvas"></canvas>
+    <div class="preview-label">3D PREVIEW</div>
   </div>
-</div>
 
-<!-- ══════════════════════════════════
-     SCRIPT
-══════════════════════════════════ -->
-<script>
-// ── State ──────────────────────────
-let currentMode = 'text';
-let currentStyle = 'wall';
-let currentObj = 'box';
-let arStarted = false;
-let placedCount = 0;
+  <!-- AR BUTTON -->
+  <div class="ar-btn-wrap">
+    <button id="ar-btn" onclick="generateAndLaunch()">
+      <span class="ar-icon">📷</span>
+      ARで見る
+    </button>
+  </div>
 
-// ── Mode selection ──────────────────
-function selectMode(el, mode) {
-  document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-  currentMode = mode;
+  <!-- PROGRESS -->
+  <div id="progress-wrap">
+    <div class="progress-bar-bg"><div class="progress-bar" id="prog-bar"></div></div>
+    <div class="progress-label" id="prog-label">USDZ を生成中…</div>
+  </div>
+
+  <!-- NOTE -->
+  <div class="note">
+    <strong>使い方：</strong><br>
+    ① テキストまたは図形をカスタマイズ<br>
+    ② 「ARで見る」をタップ → USDZを生成<br>
+    ③ iOSのAR Quick Lookが起動<br>
+    ④ 床にタップしてオブジェクトを配置！<br><br>
+    ⚠️ iPhoneのSafariで開いてください
+  </div>
+
+</div><!-- /app -->
+
+<!-- ════════════════════════════════════
+     THREE.JS + USDZ LOGIC
+════════════════════════════════════ -->
+<script type="module">
+import * as THREE from 'three';
+import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+import { USDZExporter } from 'three/addons/exporters/USDZExporter.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+
+// ── Preview renderer ────────────────────────────────────
+const canvas = document.getElementById('preview-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
+cam.position.set(0, 0.6, 2.2);
+cam.lookAt(0, 0, 0);
+
+// Lights
+const amb = new THREE.AmbientLight(0xffffff, 0.7);
+scene.add(amb);
+const dir = new THREE.DirectionalLight(0xffffff, 2.2);
+dir.position.set(2, 4, 3);
+dir.castShadow = true;
+scene.add(dir);
+const fill = new THREE.PointLight(0xffeedd, 0.8, 10);
+fill.position.set(-2, 1, -1);
+scene.add(fill);
+
+let previewMesh = null;
+let frameId = null;
+
+function resizeRenderer() {
+  const w = canvas.parentElement.clientWidth;
+  renderer.setSize(w, w, false);
+  cam.aspect = 1;
+  cam.updateProjectionMatrix();
 }
+resizeRenderer();
+new ResizeObserver(resizeRenderer).observe(canvas.parentElement);
 
-// ── Style selection ─────────────────
-function selectStyle(el) {
-  document.querySelectorAll('.style-chip').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
-  currentStyle = el.dataset.style;
+function animate() {
+  frameId = requestAnimationFrame(animate);
+  if (previewMesh) previewMesh.rotation.y += 0.008;
+  renderer.render(scene, cam);
 }
+animate();
 
-// ── Object selection ────────────────
-function selectObj(el) {
-  document.querySelectorAll('.obj-card').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
-  currentObj = el.dataset.obj;
-}
-
-// ── Start AR ────────────────────────
-async function startAR() {
-  // Check camera permission
-  try {
-    await navigator.mediaDevices.getUserMedia({ video: true });
-  } catch (e) {
-    document.getElementById('permission-screen').classList.add('active');
-    document.getElementById('launch-screen').style.display = 'none';
-    return;
-  }
-
-  document.getElementById('launch-screen').style.display = 'none';
-  document.getElementById('ar-scene').style.display = 'block';
-
-  // Show UI
-  const ui = document.getElementById('text-ui');
-  ui.classList.add('active');
-
-  // Update mode badge and panels
-  if (currentMode === 'text') {
-    document.getElementById('mode-badge').textContent = 'TEXT MODE';
-    document.getElementById('text-panel').style.display = 'flex';
-    document.getElementById('obj-panel').style.display = 'none';
-  } else {
-    document.getElementById('mode-badge').textContent = 'OBJECT MODE';
-    document.getElementById('text-panel').style.display = 'none';
-    document.getElementById('obj-panel').style.display = 'block';
-  }
-
-  arStarted = true;
-
-  // Hide hint after 4s
-  setTimeout(() => {
-    const hint = document.getElementById('hint-toast');
-    hint.classList.add('hidden');
-    setTimeout(() => hint.style.display = 'none', 600);
-  }, 4000);
-}
-
-// ── Exit AR ─────────────────────────
-function exitAR() {
-  location.reload();
-}
-
-// ── Clear all ───────────────────────
-function clearAll() {
-  const content = document.getElementById('ar-content');
-  while (content.firstChild) content.removeChild(content.firstChild);
-  placedCount = 0;
-  showToast('すべてクリアしました');
-}
-
-// ── Get placement position ──────────
-function getPlacePosition(type = 'wall') {
-  // Place ~2m in front of camera, with variation based on placement count
-  const spread = Math.min(placedCount * 0.3, 1.5);
-  const xOffset = (Math.random() - 0.5) * spread;
-  const yOffset = type === 'floor' ? -1.2 : (Math.random() - 0.5) * spread * 0.5;
-  const z = -2;
-  return { x: xOffset, y: yOffset, z };
-}
-
-// ── Style configs ───────────────────
-const styleConfigs = {
-  wall:  { color: '#ffffff', opacity: 1,    size: 0.3,  shader: 'flat',   outline: false },
-  float: { color: '#00f5c4', opacity: 0.95, size: 0.25, shader: 'flat',   outline: false },
-  neon:  { color: '#bf80ff', opacity: 1,    size: 0.28, shader: 'flat',   outline: true  },
-  stamp: { color: '#ff4444', opacity: 1,    size: 0.35, shader: 'flat',   outline: false },
-  ghost: { color: '#aaaaff', opacity: 0.45, size: 0.3,  shader: 'flat',   outline: false },
+// ── State ───────────────────────────────────────────────
+let state = {
+  mode: 'text',
+  text: 'Hello AR!',
+  font: 'helvetiker',
+  textColor: '#d4500a',
+  textSize: 0.15,
+  textDepth: 0.04,
+  shape: 'box',
+  shapeColor: '#2c6e49',
+  shapeSize: 0.4,
 };
 
-// ── Place Text ───────────────────────
-function placeText() {
-  const input = document.getElementById('text-input');
-  const txt = input.value.trim();
-  if (!txt) {
-    input.focus();
-    return;
-  }
+window.appState = state;
 
-  const cfg = styleConfigs[currentStyle] || styleConfigs.wall;
-  const pos = getPlacePosition('wall');
-  const content = document.getElementById('ar-content');
+// ── Font cache ───────────────────────────────────────────
+const fontLoader = new FontLoader();
+const fontCache = {};
 
-  // Create text entity
-  const entity = document.createElement('a-text');
-  entity.setAttribute('value', txt);
-  entity.setAttribute('color', cfg.color);
-  entity.setAttribute('opacity', cfg.opacity);
-  entity.setAttribute('width', 4);
-  entity.setAttribute('align', 'center');
-  entity.setAttribute('shader', cfg.shader);
-  entity.setAttribute('font', 'roboto');
-  entity.setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
+const FONT_URLS = {
+  helvetiker: 'https://threejs.org/examples/fonts/helvetiker_regular.typeface.json',
+  optimer:    'https://threejs.org/examples/fonts/optimer_regular.typeface.json',
+  gentilis:   'https://threejs.org/examples/fonts/gentilis_regular.typeface.json',
+};
 
-  // Rotation: face user
-  entity.setAttribute('rotation', '0 0 0');
-
-  // Scale by style
-  const scale = cfg.size * 4;
-  entity.setAttribute('scale', `${scale} ${scale} ${scale}`);
-
-  // Animation for float style
-  if (currentStyle === 'float') {
-    entity.setAttribute('animation', 'property: position; dir: alternate; dur: 2000; easing: easeInOutSine; loop: true; to: ' + `${pos.x} ${pos.y + 0.15} ${pos.z}`);
-  }
-
-  if (currentStyle === 'neon') {
-    entity.setAttribute('animation', 'property: opacity; dir: alternate; dur: 800; easing: easeInOutSine; loop: true; to: 0.6');
-  }
-
-  content.appendChild(entity);
-  placedCount++;
-  input.value = '';
-  showToast(`"${txt}" を配置しました`);
+async function loadFont(name) {
+  if (fontCache[name]) return fontCache[name];
+  return new Promise((res, rej) => {
+    fontLoader.load(FONT_URLS[name], f => { fontCache[name] = f; res(f); }, undefined, rej);
+  });
 }
 
-// ── Place Object ─────────────────────
-function placeObject() {
-  const pos = getPlacePosition('floor');
-  const content = document.getElementById('ar-content');
+// ── Build preview scene object ───────────────────────────
+async function buildObject(forExport = false) {
+  if (previewMesh) { scene.remove(previewMesh); previewMesh.geometry?.dispose(); }
 
-  let entity;
+  let geo, mat;
 
-  const colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#c77dff','#ff9a3c'];
-  const color = colors[placedCount % colors.length];
+  if (state.mode === 'text') {
+    const font = await loadFont(state.font);
+    const txt = state.text.trim() || 'AR';
+    geo = new TextGeometry(txt, {
+      font,
+      size:  state.textSize,
+      depth: state.textDepth,
+      curveSegments: forExport ? 6 : 10,
+      bevelEnabled: true,
+      bevelThickness: state.textDepth * 0.15,
+      bevelSize: state.textSize * 0.03,
+      bevelSegments: forExport ? 2 : 4,
+    });
+    geo.computeBoundingBox();
+    const cx = -(geo.boundingBox.max.x - geo.boundingBox.min.x) / 2;
+    geo.translate(cx, 0, 0);
+    mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(state.textColor),
+      roughness: 0.35,
+      metalness: 0.1,
+    });
 
-  switch (currentObj) {
-    case 'box':
-      entity = document.createElement('a-box');
-      entity.setAttribute('color', color);
-      entity.setAttribute('depth', '0.3');
-      entity.setAttribute('height', '0.3');
-      entity.setAttribute('width', '0.3');
-      entity.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear');
-      break;
-
-    case 'sphere':
-      entity = document.createElement('a-sphere');
-      entity.setAttribute('color', color);
-      entity.setAttribute('radius', '0.2');
-      entity.setAttribute('animation', 'property: position; dir: alternate; dur: 1500; easing: easeInOutSine; loop: true; to: ' + `${pos.x} ${pos.y + 0.2} ${pos.z}`);
-      break;
-
-    case 'cone':
-      entity = document.createElement('a-cone');
-      entity.setAttribute('color', color);
-      entity.setAttribute('height', '0.5');
-      entity.setAttribute('radius-bottom', '0.2');
-      entity.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 3000; easing: linear');
-      break;
-
-    case 'torus':
-      entity = document.createElement('a-torus');
-      entity.setAttribute('color', color);
-      entity.setAttribute('radius', '0.2');
-      entity.setAttribute('radius-tubular', '0.05');
-      entity.setAttribute('animation', 'property: rotation; to: 360 180 0; loop: true; dur: 3000; easing: linear');
-      break;
-
-    case 'tree': {
-      // Trunk + leaves composite
-      entity = document.createElement('a-entity');
-      const trunk = document.createElement('a-cylinder');
-      trunk.setAttribute('color', '#8B4513');
-      trunk.setAttribute('height', '0.4');
-      trunk.setAttribute('radius', '0.05');
-      trunk.setAttribute('position', '0 0 0');
-      const leaves = document.createElement('a-cone');
-      leaves.setAttribute('color', '#2d8a2d');
-      leaves.setAttribute('height', '0.5');
-      leaves.setAttribute('radius-bottom', '0.25');
-      leaves.setAttribute('position', '0 0.45 0');
-      entity.appendChild(trunk);
-      entity.appendChild(leaves);
-      break;
+  } else {
+    const s = state.shapeSize;
+    switch(state.shape) {
+      case 'box':      geo = new THREE.BoxGeometry(s, s, s); break;
+      case 'sphere':   geo = new THREE.SphereGeometry(s/2, 32, 24); break;
+      case 'cylinder': geo = new THREE.CylinderGeometry(s/2, s/2, s, 32); break;
+      case 'cone':     geo = new THREE.ConeGeometry(s/2, s, 32); break;
+      case 'torus':    geo = new THREE.TorusGeometry(s/2, s/6, 16, 60); break;
+      default:         geo = new THREE.BoxGeometry(s, s, s);
     }
-
-    case 'house': {
-      entity = document.createElement('a-entity');
-      const walls = document.createElement('a-box');
-      walls.setAttribute('color', '#f5e6d3');
-      walls.setAttribute('width', '0.5');
-      walls.setAttribute('height', '0.35');
-      walls.setAttribute('depth', '0.5');
-      walls.setAttribute('position', '0 0 0');
-      const roof = document.createElement('a-cone');
-      roof.setAttribute('color', '#c0392b');
-      roof.setAttribute('height', '0.3');
-      roof.setAttribute('radius-bottom', '0.38');
-      roof.setAttribute('position', '0 0.32 0');
-      entity.appendChild(walls);
-      entity.appendChild(roof);
-      break;
-    }
-
-    case 'star': {
-      entity = document.createElement('a-entity');
-      // Approximate star with torus-knot
-      const star = document.createElement('a-torus-knot');
-      star.setAttribute('color', '#ffd700');
-      star.setAttribute('radius', '0.12');
-      star.setAttribute('radius-tubular', '0.03');
-      star.setAttribute('p', '2');
-      star.setAttribute('q', '3');
-      star.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear');
-      entity.appendChild(star);
-      entity = star;
-      break;
-    }
-
-    case 'arrow': {
-      entity = document.createElement('a-entity');
-      const shaft = document.createElement('a-cylinder');
-      shaft.setAttribute('color', '#ff6b6b');
-      shaft.setAttribute('height', '0.5');
-      shaft.setAttribute('radius', '0.04');
-      shaft.setAttribute('position', '0 0 0');
-      const head = document.createElement('a-cone');
-      head.setAttribute('color', '#ff6b6b');
-      head.setAttribute('height', '0.2');
-      head.setAttribute('radius-bottom', '0.1');
-      head.setAttribute('position', '0 0.35 0');
-      entity.appendChild(shaft);
-      entity.appendChild(head);
-      entity.setAttribute('animation', 'property: position; dir: alternate; dur: 1200; easing: easeInOutSine; loop: true; to: ' + `${pos.x} ${pos.y + 0.15} ${pos.z}`);
-      break;
-    }
-
-    default:
-      entity = document.createElement('a-box');
-      entity.setAttribute('color', color);
+    mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(state.shapeColor),
+      roughness: 0.3,
+      metalness: 0.2,
+    });
   }
 
-  entity.setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
-  entity.setAttribute('shadow', 'cast: true; receive: true');
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
 
-  content.appendChild(entity);
-  placedCount++;
-
-  const labels = { box:'ボックス', sphere:'スフィア', cone:'コーン', torus:'トーラス', tree:'ツリー', house:'ハウス', star:'スター', arrow:'アロー' };
-  showToast(`${labels[currentObj] || 'オブジェクト'} を配置しました`);
+  if (!forExport) {
+    previewMesh = mesh;
+    scene.add(mesh);
+  }
+  return mesh;
 }
 
-// ── Toast ────────────────────────────
-let toastTimer;
-function showToast(msg) {
-  const hint = document.getElementById('hint-toast');
-  hint.style.display = 'block';
-  hint.classList.remove('hidden');
-  hint.textContent = msg;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    hint.classList.add('hidden');
-    setTimeout(() => { if (hint.classList.contains('hidden')) hint.style.display = 'none'; }, 600);
-  }, 2000);
+// ── Initial preview ──────────────────────────────────────
+buildObject();
+
+// ── Schedule debounced preview rebuild ──────────────────
+let previewTimer = null;
+window.schedulePreview = () => {
+  state.text = document.getElementById('txt').value || 'AR';
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => buildObject(), 300);
+};
+
+// ── Slider helper ────────────────────────────────────────
+window.onSlider = (el, spanId) => {
+  const v = parseFloat(el.value);
+  document.getElementById(spanId).textContent = v.toFixed(3).replace(/0+$/,'').replace(/\.$/,'');
+  if (el.id === 'txt-size')  state.textSize  = v;
+  if (el.id === 'txt-depth') state.textDepth = v;
+  if (el.id === 'shp-size')  state.shapeSize = v;
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => buildObject(), 200);
+};
+
+// ── Tab switch ───────────────────────────────────────────
+window.switchTab = (tab) => {
+  state.mode = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${tab}`));
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => buildObject(), 100);
+};
+
+// ── Chip / dot event delegation ──────────────────────────
+function setupChips(groupId, key, rebuild = true) {
+  document.getElementById(groupId)?.addEventListener('click', e => {
+    const chip = e.target.closest('[data-' + key.split('.')[0] + ']');
+    if (!chip) return;
+    document.querySelectorAll('#' + groupId + ' .chip, #' + groupId + ' .dot')
+      .forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    const val = chip.dataset[key.split('.')[0]] || chip.dataset[Object.keys(chip.dataset)[0]];
+    if (key === 'font')  state.font = val;
+    if (key === 'shape') state.shape = val;
+    if (key === 'color' && groupId === 'text-colors')  state.textColor  = val;
+    if (key === 'color' && groupId === 'shape-colors') state.shapeColor = val;
+    if (rebuild) { clearTimeout(previewTimer); previewTimer = setTimeout(() => buildObject(), 150); }
+  });
+}
+setupChips('font-chips',    'font');
+setupChips('shape-chips',   'shape');
+setupChips('text-colors',   'color');
+setupChips('shape-colors',  'color');
+
+// ── Progress helpers ─────────────────────────────────────
+function setProgress(pct, label) {
+  document.getElementById('prog-bar').style.width = pct + '%';
+  document.getElementById('prog-label').textContent = label;
+}
+function showProgress(show) {
+  document.getElementById('progress-wrap').style.display = show ? 'block' : 'none';
 }
 
-// ── Enter key to place text ──────────
-document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && arStarted && currentMode === 'text') placeText();
-});
+// ── Generate USDZ & launch AR ────────────────────────────
+window.generateAndLaunch = async () => {
+  const btn = document.getElementById('ar-btn');
+  btn.disabled = true;
+  showProgress(true);
+  setProgress(10, 'オブジェクトを構築中…');
+
+  try {
+    // Build export scene (separate from preview)
+    const exportScene = new THREE.Scene();
+    const exportMesh = await buildObject(true);
+
+    // Position mesh above floor (y=0 is floor in AR Quick Look)
+    exportMesh.position.set(0, 0, 0);
+    exportScene.add(exportMesh);
+
+    // Lights for export
+    exportScene.add(new THREE.AmbientLight(0xffffff, 1.0));
+    const dl = new THREE.DirectionalLight(0xffffff, 2);
+    dl.position.set(2, 4, 3);
+    exportScene.add(dl);
+
+    setProgress(35, 'USDZエクスポーター準備中…');
+    await new Promise(r => setTimeout(r, 50));
+
+    const exporter = new USDZExporter();
+    setProgress(60, 'USDZ生成中（少し時間がかかります）…');
+    await new Promise(r => setTimeout(r, 50));
+
+    const arraybuffer = await exporter.parseAsync(exportScene, {
+      quickLookCompatible: true,
+      maxTextureSize: 512,
+    });
+
+    setProgress(90, 'ダウンロードリンクを作成中…');
+
+    // Create blob URL
+    const blob = new Blob([arraybuffer], { type: 'model/vnd.usdz+zip' });
+    const url  = URL.createObjectURL(blob);
+
+    setProgress(100, '完了！ARを開いています…');
+    await new Promise(r => setTimeout(r, 200));
+
+    // iOS AR Quick Look trigger:
+    // Must be an <a> with rel="ar" wrapping an image, with href pointing to .usdz
+    const anchor = document.createElement('a');
+    anchor.setAttribute('rel', 'ar');
+    anchor.setAttribute('href', url);
+    anchor.appendChild(document.createElement('img')); // required by iOS
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+
+    // Cleanup after delay
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      document.body.removeChild(anchor);
+    }, 5000);
+
+  } catch(err) {
+    console.error('USDZ error:', err);
+    alert('エラーが発生しました。\n' + err.message + '\n\nSafariで開いているか確認してください。');
+  } finally {
+    btn.disabled = false;
+    showProgress(false);
+  }
+};
+
+// ── Init slider display values ───────────────────────────
+document.getElementById('tsz').textContent = '0.15';
+document.getElementById('tdp').textContent = '0.04';
+document.getElementById('ssz').textContent = '0.40';
 </script>
-
 </body>
 </html>
